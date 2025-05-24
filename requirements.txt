@@ -1,0 +1,7 @@
+flask
+schedule
+requests
+gspread
+oauth2client
+python-dotenv
+pytz
