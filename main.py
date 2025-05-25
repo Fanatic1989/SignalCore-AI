@@ -2,47 +2,50 @@ import os
 import requests
 import schedule
 import time
-from flask import Flask, render_template, request
-from threading import Thread
-from datetime import datetime
-from werkzeug.utils import secure_filename
 import pytz
+from flask import Flask, render_template, request, redirect, session, url_for
+from werkzeug.utils import secure_filename
+from threading import Thread
+from datetime import datetime, timedelta
 
-from utils.pick_generator import generate_pick  # ✅ Your generator
+from utils.pick_generator import generate_pick  # Make sure utils/ is in your project
 
-# ENV variables
+# ENV
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 
-# Setup Flask
+# Flask setup
 app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY", "this_should_be_secret")
+app.permanent_session_lifetime = timedelta(days=1)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # ---------------------
-# 📢 Pick Sender Logic
+# 📢 PICK SENDER
 # ---------------------
 def send_daily_pick():
     pick = generate_pick()
     message = f"🔥 SignalCore AI VIP Pick\n\n{pick}"
 
-    # Telegram
-    telegram_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    tg = requests.post(telegram_url, data={"chat_id": CHAT_ID, "text": message})
+    tg = requests.post(
+        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+        data={"chat_id": CHAT_ID, "text": message}
+    )
     print("Telegram:", tg.status_code, tg.text)
 
-    # Discord
     dc = requests.post(DISCORD_WEBHOOK, json={"content": message})
     print("Discord:", dc.status_code, dc.text)
 
 # ---------------------
-# 🌐 Web Routes
+# 🌐 ROUTES
 # ---------------------
 @app.route('/')
 @app.route('/vip')
 def vip_payment():
-    return render_template('vip_payment.html')
+    is_vip = session.get('is_vip', False)
+    return render_template('vip_payment.html', is_vip=is_vip)
 
 @app.route('/submit-proof', methods=['GET', 'POST'])
 def submit_proof():
@@ -55,7 +58,8 @@ def submit_proof():
             filename = secure_filename(screenshot.filename)
             screenshot.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
             print("Saved screenshot:", filename)
-        return "✅ Your proof has been received and is under review."
+        session['is_vip'] = True
+        return redirect(url_for('vip_payment'))
     return render_template('submit_proof.html')
 
 @app.route('/ping')
@@ -63,7 +67,7 @@ def ping():
     return "pong"
 
 # ---------------------
-# 🔁 Scheduler
+# 🔁 SCHEDULER
 # ---------------------
 def run_scheduler():
     ast = pytz.timezone("America/Puerto_Rico")
@@ -82,7 +86,7 @@ def keep_alive():
     app.run(host='0.0.0.0', port=port)
 
 # ---------------------
-# 🚀 Run Everything
+# 🚀 LAUNCH
 # ---------------------
 if __name__ == '__main__':
     Thread(target=keep_alive).start()
