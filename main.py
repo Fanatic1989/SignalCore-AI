@@ -1,37 +1,44 @@
 import os
 from flask import Flask, render_template, request
-from threading import Thread
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = 'uploads'
 
-# Home route
+# Ensure the uploads directory exists
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# Home route shows VIP payment
 @app.route('/')
 def home():
-    return "✅ SignalCore AI is live!"
+    return render_template('vip_payment.html')
 
-# VIP payment route
+# VIP payment page (also accessible via /vip)
 @app.route('/vip')
 def vip_payment():
     return render_template('vip_payment.html')
 
-# Submit proof route
+# Submit payment proof
 @app.route('/submit-proof', methods=['GET', 'POST'])
 def submit_proof():
     if request.method == 'POST':
         txid = request.form.get('txid')
         screenshot = request.files.get('screenshot')
-        print("Proof submitted:")
-        print("Transaction ID:", txid)
-        print("Screenshot filename:", screenshot.filename if screenshot else "No file uploaded")
-        return "✅ Your proof has been received. We’ll review it shortly."
+        print("🧾 Proof Submitted")
+        print("TXID:", txid)
+        if screenshot:
+            filename = secure_filename(screenshot.filename)
+            screenshot.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            print("Saved screenshot:", filename)
+        return "✅ Your proof has been received and is under review."
     return render_template('submit_proof.html')
 
-# Ping for uptime checks
+# Ping route (for UptimeRobot)
 @app.route('/ping')
 def ping():
     return "pong"
 
-# Run server
+# Run app
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
