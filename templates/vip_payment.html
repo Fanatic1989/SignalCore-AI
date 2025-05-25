@@ -40,10 +40,15 @@
 
   <div class="links">
     <a class="button" href="/submit-proof">Submit Payment Proof</a>
-    <a class="button" href="https://t.me/signalaicore" target="_blank">📣 Telegram</a>
-    <a class="button" href="https://discord.gg/wUPmEKfj" target="_blank">💬 Discord</a>
-    <a class="button" href="https://stake.com/?c=LxClMfd2" target="_blank">🎰 Join Stake</a>
-    <a class="button" href="https://www.betonline.ag/?RAF=7BA9CE73&product=SPO" target="_blank">🏈 BetOnline</a>
+
+    {% if is_vip %}
+      <a class="button" href="https://t.me/signalaicore" target="_blank">📣 Telegram</a>
+      <a class="button" href="https://discord.gg/wUPmEKfj" target="_blank">💬 Discord</a>
+      <a class="button" href="https://stake.com/?c=LxClMfd2" target="_blank">🎰 Join Stake</a>
+      <a class="button" href="https://www.betonline.ag/?RAF=7BA9CE73&product=SPO" target="_blank">🏈 BetOnline</a>
+    {% else %}
+      <p style="margin-top:20px;">🔒 VIP links unlock after proof of payment.</p>
+    {% endif %}
   </div>
 </body>
 </html>
