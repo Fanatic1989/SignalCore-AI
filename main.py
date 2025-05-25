@@ -2,25 +2,29 @@ import os
 import requests
 import schedule
 import time
-from flask import Flask
+from flask import Flask, render_template, request
 from threading import Thread
 from datetime import datetime
+from werkzeug.utils import secure_filename
 import pytz
 
-from utils.pick_generator import generate_pick  # ✅ your pick code
-# from sheet_logger import log_to_sheet  # Optional logging
+from utils.pick_generator import generate_pick  # ✅ Your generator
 
-# ✅ Load tokens from environment
+# ENV variables
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 
+# Setup Flask
 app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = 'uploads'
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# 🧠 Core pick logic
+# ---------------------
+# 📢 Pick Sender Logic
+# ---------------------
 def send_daily_pick():
     pick = generate_pick()
-
     message = f"🔥 SignalCore AI VIP Pick\n\n{pick}"
 
     # Telegram
@@ -32,26 +36,35 @@ def send_daily_pick():
     dc = requests.post(DISCORD_WEBHOOK, json={"content": message})
     print("Discord:", dc.status_code, dc.text)
 
-    # Optional: log_to_sheet(pick)
-
-# 🌐 Ping and Flask UI
+# ---------------------
+# 🌐 Web Routes
+# ---------------------
 @app.route('/')
-def home():
-    return "✅ SignalCore AI is running 24/7."
+@app.route('/vip')
+def vip_payment():
+    return render_template('vip_payment.html')
+
+@app.route('/submit-proof', methods=['GET', 'POST'])
+def submit_proof():
+    if request.method == 'POST':
+        txid = request.form.get('txid')
+        screenshot = request.files.get('screenshot')
+        print("🧾 Proof Submitted")
+        print("TXID:", txid)
+        if screenshot:
+            filename = secure_filename(screenshot.filename)
+            screenshot.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            print("Saved screenshot:", filename)
+        return "✅ Your proof has been received and is under review."
+    return render_template('submit_proof.html')
 
 @app.route('/ping')
 def ping():
     return "pong"
 
-def run_web():
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
-
-def keep_alive():
-    t = Thread(target=run_web)
-    t.start()
-
-# ⏰ Schedule 3 drops: 12PM, 3PM, 6PM (AST/GMT-4)
+# ---------------------
+# 🔁 Scheduler
+# ---------------------
 def run_scheduler():
     ast = pytz.timezone("America/Puerto_Rico")
     print(f"[{datetime.now(ast).strftime('%Y-%m-%d %H:%M:%S')}] Scheduler started")
@@ -64,6 +77,13 @@ def run_scheduler():
         schedule.run_pending()
         time.sleep(30)
 
+def keep_alive():
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
+
+# ---------------------
+# 🚀 Run Everything
+# ---------------------
 if __name__ == '__main__':
-    keep_alive()
+    Thread(target=keep_alive).start()
     run_scheduler()
