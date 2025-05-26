@@ -1,44 +1,30 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Submit Payment Proof</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #111;
-      color: #fff;
-      text-align: center;
-      padding: 40px;
-    }
-    form {
-      margin-top: 30px;
-    }
-    input, textarea {
-      padding: 10px;
-      margin: 10px;
-      width: 80%;
-      background: #222;
-      color: #fff;
-      border: 1px solid #444;
-    }
-    button {
-      padding: 10px 20px;
-      background: #0ff;
-      color: #000;
-      border: none;
-      font-weight: bold;
-      cursor: pointer;
-    }
-  </style>
-</head>
-<body>
-  <h2>Submit Payment Proof</h2>
-  <p>Enter your transaction ID or upload a screenshot.</p>
-  <form method="POST" enctype="multipart/form-data">
-    <input type="text" name="txid" placeholder="Transaction ID or Hash" required><br>
-    <input type="file" name="screenshot"><br>
-    <button type="submit">Submit</button>
-  </form>
-</body>
-</html>
+@app.route('/submit-proof', methods=['GET', 'POST'])
+def submit_proof():
+    if request.method == 'POST':
+        # Get the submitted transaction ID
+        txid = request.form.get('txid')
+
+        # Get the uploaded screenshot (if any)
+        screenshot = request.files.get('screenshot')
+
+        print("🧾 Proof Submitted")
+        print("TXID:", txid)
+
+        # Save the screenshot to the uploads folder
+        if screenshot and screenshot.filename:
+            filename = secure_filename(screenshot.filename)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            screenshot.save(filepath)
+            print("Saved screenshot:", filepath)
+        else:
+            print("⚠️ No screenshot uploaded.")
+
+        # Mark user as VIP in session
+        session.permanent = True
+        session['is_vip'] = True
+
+        # Redirect to the VIP access page
+        return redirect(url_for('vip_payment'))
+
+    # If GET request, show the form
+    return render_template('submit_proof.html')
