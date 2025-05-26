@@ -1,30 +1,32 @@
 import os
+import uuid
 import requests
 import schedule
 import time
 import pytz
-from flask import Flask, render_template, request, redirect, session, url_for
+from flask import Flask, render_template, request, session, redirect, url_for, abort
 from werkzeug.utils import secure_filename
 from threading import Thread
 from datetime import datetime, timedelta
 
-from utils.pick_generator import generate_pick  # ✅ Your pick generator
+from utils.pick_generator import generate_pick
 
-# ENV variables
+# Environment
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
+NOWPAYMENTS_API_KEY = os.getenv("NOWPAYMENTS_API_KEY")
 
-# Flask app setup
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "this_should_be_secret")
-app.permanent_session_lifetime = timedelta(days=1)
+app.permanent_session_lifetime = timedelta(days=7)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# ---------------------
-# 📢 SEND PICK FUNCTION
-# ---------------------
+# 🔐 Store confirmed VIP orders in memory (for demo — replace with DB for production)
+confirmed_vips = set()
+
+# 🧠 PICK LOGIC
 def send_daily_pick():
     pick = generate_pick()
     if not pick:
@@ -48,37 +50,7 @@ def send_daily_pick():
     except Exception as e:
         print("❌ Discord error:", str(e))
 
-# ---------------------
-# 🌐 WEB ROUTES
-# ---------------------
-@app.route('/')
-@app.route('/vip')
-def vip_payment():
-    is_vip = session.get('is_vip', False)
-    return render_template('vip_payment.html', is_vip=is_vip)
-
-@app.route('/submit-proof', methods=['GET', 'POST'])
-def submit_proof():
-    if request.method == 'POST':
-        txid = request.form.get('txid')
-        screenshot = request.files.get('screenshot')
-        print("🧾 Proof Submitted")
-        print("TXID:", txid)
-        if screenshot:
-            filename = secure_filename(screenshot.filename)
-            screenshot.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            print("Saved screenshot:", filename)
-        session['is_vip'] = True
-        return redirect(url_for('vip_payment'))
-    return render_template('submit_proof.html')
-
-@app.route('/ping')
-def ping():
-    return "pong"
-
-# ---------------------
-# ⏱️ SCHEDULER THREAD
-# ---------------------
+# 🔁 DAILY PICK TIMER
 def run_scheduler():
     ast = pytz.timezone("America/Puerto_Rico")
     print(f"[{datetime.now(ast).strftime('%Y-%m-%d %H:%M:%S')}] Scheduler started")
@@ -91,13 +63,49 @@ def run_scheduler():
         schedule.run_pending()
         time.sleep(30)
 
+# 🌐 ROUTES
+
+@app.route('/')
+@app.route('/vip')
+def vip_payment():
+    order_id = session.get('order_id')
+    is_vip = order_id in confirmed_vips
+    return render_template("vip_payment.html", is_vip=is_vip, order_id=order_id)
+
+@app.route('/generate-order')
+def generate_order():
+    # 🔐 Create new order ID for the session
+    new_order_id = str(uuid.uuid4())
+    session['order_id'] = new_order_id
+    return redirect(url_for('vip_payment'))
+
+@app.route('/ping')
+def ping():
+    return "pong"
+
+# 🧾 PAYMENT WEBHOOK
+@app.route('/ipn', methods=['POST'])
+def nowpayments_webhook():
+    try:
+        data = request.json
+        print("🔔 Webhook received:", data)
+
+        if data.get("payment_status") == "finished":
+            order_id = data.get("order_id")
+            if order_id:
+                confirmed_vips.add(order_id)
+                print(f"✅ Payment confirmed for order: {order_id}")
+                return "OK", 200
+        return "Ignored", 200
+    except Exception as e:
+        print("❌ Webhook error:", str(e))
+        abort(400)
+
+# 🔁 Flask + Scheduler boot
 def keep_alive():
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
 
-# ---------------------
-# 🚀 RUN APP
-# ---------------------
 if __name__ == '__main__':
     Thread(target=keep_alive).start()
     run_scheduler()
