@@ -1,121 +1,54 @@
-import os
-import requests
-import schedule
-import time
-import pytz
-import hmac
-import hashlib
-from flask import Flask, render_template, request, redirect, session, url_for, abort
-from werkzeug.utils import secure_filename
-from threading import Thread
-from datetime import datetime, timedelta
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>VIP Access – SignalCore AI</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background-color: #111;
+      color: #fff;
+      padding: 50px;
+    }
+    img {
+      margin-top: 20px;
+      width: 250px;
+    }
+    .links {
+      margin-top: 40px;
+    }
+    a.button {
+      display: inline-block;
+      margin: 10px;
+      padding: 12px 24px;
+      background-color: #0ff;
+      color: #000;
+      text-decoration: none;
+      font-weight: bold;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <h2>🚀 Get VIP Access</h2>
+  <p>Pay <strong>20 USDT</strong> to unlock all SignalCore AI features for 7 days.</p>
 
-from utils.pick_generator import generate_pick  # Make sure utils/ is in your project
+  <a href="https://nowpayments.io/payment/?iid=4756886202&source=button" target="_blank" rel="noopener">
+    <img src="https://nowpayments.io/images/embeds/payment-button-black.svg" alt="Pay with Crypto">
+  </a>
 
-# ENV
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
-NOWPAYMENTS_API_KEY = os.getenv("NOWPAYMENTS_API_KEY")  # optional for security
+  <div class="links">
+    <a class="button" href="/submit-proof">Submit Payment Proof</a>
 
-# Flask setup
-app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "this_should_be_secret")
-app.permanent_session_lifetime = timedelta(days=1)
-app.config['UPLOAD_FOLDER'] = 'uploads'
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-
-# ---------------------
-# 📢 PICK SENDER
-# ---------------------
-def send_daily_pick():
-    pick = generate_pick()
-    message = f"🔥 SignalCore AI VIP Pick\n\n{pick}"
-
-    tg = requests.post(
-        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-        data={"chat_id": CHAT_ID, "text": message}
-    )
-    print("Telegram:", tg.status_code, tg.text)
-
-    dc = requests.post(DISCORD_WEBHOOK, json={"content": message})
-    print("Discord:", dc.status_code, dc.text)
-
-# ---------------------
-# 🌐 ROUTES
-# ---------------------
-@app.route('/')
-@app.route('/vip')
-def vip_payment():
-    is_vip = session.get('is_vip', False)
-    return render_template('vip_payment.html', is_vip=is_vip)
-
-@app.route('/submit-proof', methods=['GET', 'POST'])
-def submit_proof():
-    if request.method == 'POST':
-        txid = request.form.get('txid')
-        screenshot = request.files.get('screenshot')
-        print("🧾 Proof Submitted")
-        print("TXID:", txid)
-        if screenshot:
-            filename = secure_filename(screenshot.filename)
-            screenshot.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            print("Saved screenshot:", filename)
-        session['is_vip'] = True
-        return redirect(url_for('vip_payment'))
-    return render_template('submit_proof.html')
-
-@app.route('/ping')
-def ping():
-    return "pong"
-
-# ---------------------
-# 🔗 NOWPayments Webhook
-# ---------------------
-@app.route('/ipn', methods=['POST'])
-def nowpayments_webhook():
-    try:
-        data = request.json
-        print("🔔 Payment Webhook Received:")
-        print(data)
-
-        if data.get("payment_status") == "finished":
-            paid_amount = data.get("pay_amount")
-            pay_currency = data.get("pay_currency")
-            order_id = data.get("order_id")
-            print(f"✅ Confirmed payment of {paid_amount} {pay_currency} for order {order_id}")
-
-            # Mark session as VIP (in real usage, associate to a user by order_id or other method)
-            session['is_vip'] = True
-            return "OK", 200
-
-        return "No action", 200
-    except Exception as e:
-        print("❌ Webhook Error:", str(e))
-        abort(400)
-
-# ---------------------
-# 🔁 SCHEDULER
-# ---------------------
-def run_scheduler():
-    ast = pytz.timezone("America/Puerto_Rico")
-    print(f"[{datetime.now(ast).strftime('%Y-%m-%d %H:%M:%S')}] Scheduler started")
-
-    schedule.every().day.at("12:00").do(send_daily_pick)
-    schedule.every().day.at("15:00").do(send_daily_pick)
-    schedule.every().day.at("18:00").do(send_daily_pick)
-
-    while True:
-        schedule.run_pending()
-        time.sleep(30)
-
-def keep_alive():
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
-
-# ---------------------
-# 🚀 LAUNCH
-# ---------------------
-if __name__ == '__main__':
-    Thread(target=keep_alive).start()
-    run_scheduler()
+    {% if is_vip %}
+      <a class="button" href="https://t.me/signalaicore" target="_blank">📣 Telegram</a>
+      <a class="button" href="https://discord.gg/wUPmEKfj" target="_blank">💬 Discord</a>
+      <a class="button" href="https://stake.com/?c=LxClMfd2" target="_blank">🎰 Join Stake</a>
+      <a class="button" href="https://www.betonline.ag/?RAF=7BA9CE73&product=SPO" target="_blank">🏈 BetOnline</a>
+    {% else %}
+      <p style="margin-top: 30px; color: #888;">🔒 VIP buttons unlock after payment is verified.</p>
+    {% endif %}
+  </div>
+</body>
+</html>
