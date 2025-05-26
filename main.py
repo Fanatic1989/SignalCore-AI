@@ -8,14 +8,14 @@ from werkzeug.utils import secure_filename
 from threading import Thread
 from datetime import datetime, timedelta
 
-from utils.pick_generator import generate_pick  # Make sure this exists
+from utils.pick_generator import generate_pick  # ✅ Your pick generator
 
-# ENV
+# ENV variables
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 
-# Flask setup
+# Flask app setup
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "this_should_be_secret")
 app.permanent_session_lifetime = timedelta(days=1)
@@ -23,27 +23,33 @@ app.config['UPLOAD_FOLDER'] = 'uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # ---------------------
-# 📢 PICK SENDER
+# 📢 SEND PICK FUNCTION
 # ---------------------
 def send_daily_pick():
-    try:
-        pick = generate_pick()
-        message = f"🔥 SignalCore AI VIP Pick\n\n{pick}"
+    pick = generate_pick()
+    if not pick:
+        print("❌ Error: Pick generation failed, skipping post.")
+        return
 
+    message = f"🔥 SignalCore AI VIP Pick\n\n{pick}"
+
+    try:
         tg = requests.post(
             f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
             data={"chat_id": CHAT_ID, "text": message}
         )
         print("Telegram:", tg.status_code, tg.text)
+    except Exception as e:
+        print("❌ Telegram error:", str(e))
 
+    try:
         dc = requests.post(DISCORD_WEBHOOK, json={"content": message})
         print("Discord:", dc.status_code, dc.text)
-
     except Exception as e:
-        print("❌ Error sending pick:", e)
+        print("❌ Discord error:", str(e))
 
 # ---------------------
-# 🌐 ROUTES
+# 🌐 WEB ROUTES
 # ---------------------
 @app.route('/')
 @app.route('/vip')
@@ -71,7 +77,7 @@ def ping():
     return "pong"
 
 # ---------------------
-# 🔁 SCHEDULER
+# ⏱️ SCHEDULER THREAD
 # ---------------------
 def run_scheduler():
     ast = pytz.timezone("America/Puerto_Rico")
@@ -90,10 +96,8 @@ def keep_alive():
     app.run(host='0.0.0.0', port=port)
 
 # ---------------------
-# 🚀 TEST MODE: Send once at startup
+# 🚀 RUN APP
 # ---------------------
 if __name__ == '__main__':
-    send_daily_pick()  # ✅ TEST SIGNAL
-    # Commented out so the test sends first, not the scheduler
-    # Thread(target=keep_alive).start()
-    # run_scheduler()
+    Thread(target=keep_alive).start()
+    run_scheduler()
