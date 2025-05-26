@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>VIP Access – SignalCore AI</title>
+  <title>VIP Access - SignalCore AI</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -28,18 +28,28 @@
       font-weight: bold;
       border-radius: 6px;
     }
+    .locked {
+      color: #888;
+      margin-top: 30px;
+    }
   </style>
 </head>
 <body>
   <h2>🚀 Get VIP Access</h2>
   <p>Pay <strong>20 USDT</strong> to unlock all SignalCore AI features for 7 days.</p>
 
-  <a href="https://nowpayments.io/payment/?iid=4756886202&source=button" target="_blank" rel="noopener">
-    <img src="https://nowpayments.io/images/embeds/payment-button-black.svg" alt="Pay with Crypto">
-  </a>
+  {% if order_id %}
+    <a href="https://nowpayments.io/payment/?iid=4756886202&order_id={{ order_id }}&source=button" target="_blank" rel="noopener">
+      <img src="https://nowpayments.io/images/embeds/payment-button-black.svg" alt="Pay with Crypto">
+    </a>
+  {% else %}
+    <p class="locked">⚠️ No payment session found. <a class="button" href="/generate-order">Start Payment</a></p>
+  {% endif %}
 
   <div class="links">
-    <a class="button" href="/submit-proof">Submit Payment Proof</a>
+    {% if order_id %}
+      <a class="button" href="/submit-proof">Submit Manual Proof</a>
+    {% endif %}
 
     {% if is_vip %}
       <a class="button" href="https://t.me/signalaicore" target="_blank">📣 Telegram</a>
@@ -47,7 +57,7 @@
       <a class="button" href="https://stake.com/?c=LxClMfd2" target="_blank">🎰 Join Stake</a>
       <a class="button" href="https://www.betonline.ag/?RAF=7BA9CE73&product=SPO" target="_blank">🏈 BetOnline</a>
     {% else %}
-      <p style="margin-top: 30px; color: #888;">🔒 VIP buttons unlock after payment is verified.</p>
+      <p class="locked">🔒 VIP features unlock after verified payment.</p>
     {% endif %}
   </div>
 </body>
