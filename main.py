@@ -3,7 +3,9 @@ import requests
 import schedule
 import time
 import pytz
-from flask import Flask, render_template, request, redirect, session, url_for
+import hmac
+import hashlib
+from flask import Flask, render_template, request, redirect, session, url_for, abort
 from werkzeug.utils import secure_filename
 from threading import Thread
 from datetime import datetime, timedelta
@@ -14,6 +16,7 @@ from utils.pick_generator import generate_pick  # Make sure utils/ is in your pr
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
+NOWPAYMENTS_API_KEY = os.getenv("NOWPAYMENTS_API_KEY")  # optional for security
 
 # Flask setup
 app = Flask(__name__)
@@ -65,6 +68,31 @@ def submit_proof():
 @app.route('/ping')
 def ping():
     return "pong"
+
+# ---------------------
+# 🔗 NOWPayments Webhook
+# ---------------------
+@app.route('/ipn', methods=['POST'])
+def nowpayments_webhook():
+    try:
+        data = request.json
+        print("🔔 Payment Webhook Received:")
+        print(data)
+
+        if data.get("payment_status") == "finished":
+            paid_amount = data.get("pay_amount")
+            pay_currency = data.get("pay_currency")
+            order_id = data.get("order_id")
+            print(f"✅ Confirmed payment of {paid_amount} {pay_currency} for order {order_id}")
+
+            # Mark session as VIP (in real usage, associate to a user by order_id or other method)
+            session['is_vip'] = True
+            return "OK", 200
+
+        return "No action", 200
+    except Exception as e:
+        print("❌ Webhook Error:", str(e))
+        abort(400)
 
 # ---------------------
 # 🔁 SCHEDULER
