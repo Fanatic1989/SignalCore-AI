@@ -70,12 +70,12 @@ def ping():
 # 🔁 SCHEDULER
 # ---------------------
 def run_scheduler():
-    ast = pytz.timezone("America/Puerto_Rico")
-    print(f"[{datetime.now(ast).strftime('%Y-%m-%d %H:%M:%S')}] Scheduler started")
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Scheduler started")
+    schedule.every(1).minutes.do(send_daily_pick)
 
-    schedule.every().day.at("12:00").do(send_daily_pick)
-    schedule.every().day.at("15:00").do(send_daily_pick)
-    schedule.every().day.at("18:00").do(send_daily_pick)
+    while True:
+        schedule.run_pending()
+        time.sleep(10)
 
     while True:
         schedule.run_pending()
