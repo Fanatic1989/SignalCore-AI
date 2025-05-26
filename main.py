@@ -8,7 +8,7 @@ from werkzeug.utils import secure_filename
 from threading import Thread
 from datetime import datetime, timedelta
 
-from utils.pick_generator import generate_pick  # Make sure utils/ is in your project
+from utils.pick_generator import generate_pick  # Make sure this exists
 
 # ENV
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -26,17 +26,21 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 # 📢 PICK SENDER
 # ---------------------
 def send_daily_pick():
-    pick = generate_pick()
-    message = f"🔥 SignalCore AI VIP Pick\n\n{pick}"
+    try:
+        pick = generate_pick()
+        message = f"🔥 SignalCore AI VIP Pick\n\n{pick}"
 
-    tg = requests.post(
-        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-        data={"chat_id": CHAT_ID, "text": message}
-    )
-    print("Telegram:", tg.status_code, tg.text)
+        tg = requests.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+            data={"chat_id": CHAT_ID, "text": message}
+        )
+        print("Telegram:", tg.status_code, tg.text)
 
-    dc = requests.post(DISCORD_WEBHOOK, json={"content": message})
-    print("Discord:", dc.status_code, dc.text)
+        dc = requests.post(DISCORD_WEBHOOK, json={"content": message})
+        print("Discord:", dc.status_code, dc.text)
+
+    except Exception as e:
+        print("❌ Error sending pick:", e)
 
 # ---------------------
 # 🌐 ROUTES
@@ -70,12 +74,12 @@ def ping():
 # 🔁 SCHEDULER
 # ---------------------
 def run_scheduler():
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Scheduler started")
-    schedule.every(1).minutes.do(send_daily_pick)
+    ast = pytz.timezone("America/Puerto_Rico")
+    print(f"[{datetime.now(ast).strftime('%Y-%m-%d %H:%M:%S')}] Scheduler started")
 
-    while True:
-        schedule.run_pending()
-        time.sleep(10)
+    schedule.every().day.at("12:00").do(send_daily_pick)
+    schedule.every().day.at("15:00").do(send_daily_pick)
+    schedule.every().day.at("18:00").do(send_daily_pick)
 
     while True:
         schedule.run_pending()
@@ -86,8 +90,10 @@ def keep_alive():
     app.run(host='0.0.0.0', port=port)
 
 # ---------------------
-# 🚀 LAUNCH
+# 🚀 TEST MODE: Send once at startup
 # ---------------------
 if __name__ == '__main__':
-    Thread(target=keep_alive).start()
-    run_scheduler()
+    send_daily_pick()  # ✅ TEST SIGNAL
+    # Commented out so the test sends first, not the scheduler
+    # Thread(target=keep_alive).start()
+    # run_scheduler()
