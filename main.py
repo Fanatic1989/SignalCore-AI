@@ -1,33 +1,35 @@
 import os
 import uuid
+import json
 import requests
 import schedule
 import time
 import pytz
-from flask import Flask, render_template, request, session, redirect, url_for, abort
+from flask import Flask, render_template, request, session, redirect, url_for, abort, render_template_string
 from werkzeug.utils import secure_filename
 from threading import Thread
 from datetime import datetime, timedelta
-
 from utils.pick_generator import generate_pick
 from vip_data import load_vips, save_vips
 
-# ENVIRONMENT
+# === ENVIRONMENT VARIABLES ===
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
 NOWPAYMENTS_API_KEY = os.getenv("NOWPAYMENTS_API_KEY")
+ADMIN_PASSWORD = "Zariah*1"
 
+# === FLASK CONFIGURATION ===
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "this_should_be_secret")
 app.permanent_session_lifetime = timedelta(days=7)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# 🔐 VIP ORDER STORAGE
+# === VIP MEMORY CACHE ===
 confirmed_vips = load_vips()
 
-# 📢 Send Pick
+# === PICK SENDER ===
 def send_daily_pick():
     pick = generate_pick()
     if not pick:
@@ -51,20 +53,7 @@ def send_daily_pick():
     except Exception as e:
         print("❌ Discord error:", str(e))
 
-# 🔁 Schedule
-def run_scheduler():
-    ast = pytz.timezone("America/Puerto_Rico")
-    print(f"[{datetime.now(ast).strftime('%Y-%m-%d %H:%M:%S')}] Scheduler started")
-
-    schedule.every().day.at("12:00").do(send_daily_pick)
-    schedule.every().day.at("15:00").do(send_daily_pick)
-    schedule.every().day.at("18:00").do(send_daily_pick)
-
-    while True:
-        schedule.run_pending()
-        time.sleep(30)
-
-# 🌐 Routes
+# === ROUTES ===
 @app.route('/')
 @app.route('/vip')
 def vip_payment():
@@ -89,9 +78,15 @@ def submit_proof():
             filename = secure_filename(screenshot.filename)
             screenshot.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
             print("Saved screenshot:", filename)
+        session['is_vip'] = True
         return redirect(url_for('vip_payment'))
-    return render_template("submit_proof.html")
+    return render_template('submit_proof.html')
 
+@app.route('/ping')
+def ping():
+    return "pong"
+
+# === NOWPAYMENTS WEBHOOK ===
 @app.route('/ipn', methods=['POST'])
 def nowpayments_webhook():
     try:
@@ -101,51 +96,58 @@ def nowpayments_webhook():
         if data.get("payment_status") == "finished":
             order_id = data.get("order_id")
             if order_id:
-                confirmed_vips.add(order_id)
+                confirmed_vips[order_id] = {
+                    "expires": (datetime.utcnow() + timedelta(days=7)).isoformat()
+                }
                 save_vips(confirmed_vips)
-                print(f"✅ Payment confirmed for order: {order_id}")
+                print(f"✅ Payment confirmed and VIP access granted: {order_id}")
                 return "OK", 200
         return "Ignored", 200
     except Exception as e:
         print("❌ Webhook error:", str(e))
         abort(400)
 
-@app.route('/ping')
-def ping():
-    return "pong"
-
+# === ADMIN PANEL ===
 @app.route('/admin', methods=['GET', 'POST'])
-def admin():
-    if request.method == 'POST':
-        password = request.form.get('password')
-        if password == os.getenv("ADMIN_PASSWORD", "admin123"):
-            session['admin'] = True
-            return redirect(url_for('admin_panel'))
-        return "❌ Wrong password", 403
-    return render_template('admin_login.html')
-
-@app.route('/admin/panel', methods=['GET', 'POST'])
 def admin_panel():
-    if not session.get('admin'):
-        return redirect(url_for('admin'))
-
-    message = ""
     if request.method == 'POST':
-        action = request.form.get('action')
-        order_id = request.form.get('order_id')
-        if order_id:
-            if action == "add":
-                confirmed_vips.add(order_id)
-                save_vips(confirmed_vips)
-                message = f"✅ Added VIP: {order_id}"
-            elif action == "remove":
-                confirmed_vips.discard(order_id)
-                save_vips(confirmed_vips)
-                message = f"❌ Removed VIP: {order_id}"
+        pw = request.form.get('password')
+        if pw == ADMIN_PASSWORD:
+            vips = load_vips()
+            return render_template_string("""
+                <h2>✅ VIP Access Panel</h2>
+                <p>Total VIPs: {{ vips|length }}</p>
+                <ul>
+                  {% for order_id, info in vips.items() %}
+                    <li><strong>{{ order_id }}</strong> — Expires: {{ info['expires'] }}</li>
+                  {% endfor %}
+                </ul>
+                <a href="/">← Back to Home</a>
+            """, vips=vips)
+        return "❌ Incorrect password", 401
 
-    return render_template('admin_panel.html', vips=confirmed_vips, message=message)
+    return '''
+    <h2>🔒 Admin Login</h2>
+    <form method="POST">
+        <input type="password" name="password" placeholder="Enter admin password" required>
+        <button type="submit">Login</button>
+    </form>
+    '''
 
-# 🧠 Flask + Scheduler
+# === SCHEDULER THREAD ===
+def run_scheduler():
+    ast = pytz.timezone("America/Puerto_Rico")
+    print(f"[{datetime.now(ast).strftime('%Y-%m-%d %H:%M:%S')}] Scheduler started")
+
+    schedule.every().day.at("12:00").do(send_daily_pick)
+    schedule.every().day.at("15:00").do(send_daily_pick)
+    schedule.every().day.at("18:00").do(send_daily_pick)
+
+    while True:
+        schedule.run_pending()
+        time.sleep(30)
+
+# === LAUNCH APP ===
 def keep_alive():
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
