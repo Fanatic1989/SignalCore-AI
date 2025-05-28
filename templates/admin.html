@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>VIP Admin Panel</title>
+  <style>
+    body {
+      background: #111;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      padding: 40px;
+    }
+    h2 {
+      color: #0f0;
+    }
+    form {
+      margin-top: 30px;
+      background: #222;
+      padding: 20px;
+      border-radius: 8px;
+    }
+    input, textarea, select {
+      padding: 10px;
+      margin: 10px 0;
+      width: 100%;
+      background: #333;
+      color: #fff;
+      border: 1px solid #444;
+    }
+    button {
+      padding: 10px 20px;
+      background: #0ff;
+      color: #000;
+      font-weight: bold;
+      border: none;
+      cursor: pointer;
+    }
+    a {
+      color: #0ff;
+    }
+  </style>
+</head>
+<body>
+  <h2>✅ VIP Access Panel</h2>
+
+  <p><strong>Total VIPs:</strong> {{ total_vips }}</p>
+
+  <h3>📨 Send Manual Pick</h3>
+  <form method="POST" action="/admin/send-pick">
+    <textarea name="pick_message" rows="4" placeholder="Enter pick message..."></textarea>
+    <button type="submit">Send Pick</button>
+  </form>
+
+  <h3>👤 Add Free VIP User</h3>
+  <form method="POST" action="/admin/add-vip">
+    <input type="text" name="order_id" placeholder="Unique Order ID (can be any name)" required>
+    <select name="days">
+      <option value="7">7 Days</option>
+      <option value="30">30 Days</option>
+    </select>
+    <button type="submit">Add VIP</button>
+  </form>
+
+  <p><a href="/">← Back to Home</a></p>
+</body>
+</html>
