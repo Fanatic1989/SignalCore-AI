@@ -3,46 +3,49 @@ import requests
 import random
 from datetime import datetime
 
-# ✅ Replace this with your actual key or leave as env var
-ODDS_API_KEY = os.getenv("ODDS_API_KEY", "df567d1f30b264c40cdac21f56f862e4")
+# Get your Odds API key from environment
+ODDS_API_KEY = os.getenv("API_KEY", "your_api_key_here")
 
+# Supported sports and markets (choose only available ones)
 SPORTS = ["basketball_nba", "icehockey_nhl", "baseball_mlb"]
 BOOKMAKERS = ["stake", "betonlineag"]
+MARKETS = ["h2h", "totals", "spreads"]  # Use valid ones per docs
 
 def generate_pick():
     try:
+        # Randomly choose a sport
         sport = random.choice(SPORTS)
-        url = (
-            f"https://api.the-odds-api.com/v4/sports/{sport}/odds/"
-            f"?regions=us&markets=player_points,player_hits,player_shots"
-            f"&bookmakers={','.join(BOOKMAKERS)}&apiKey={ODDS_API_KEY}"
-        )
+        url = f"https://api.the-odds-api.com/v4/sports/{sport}/odds/?regions=us&markets={','.join(MARKETS)}&bookmakers={','.join(BOOKMAKERS)}&apiKey={ODDS_API_KEY}"
 
         response = requests.get(url)
         if response.status_code != 200:
-            raise Exception(f"Bad response {response.status_code}: {response.text}")
+            print(f"❌ generate_pick error: Bad response {response.status_code}: {response.text}")
+            return None
 
         data = response.json()
         if not data:
+            print("❌ No data received from Odds API.")
             return None
 
+        # Randomly choose a game from available ones
         game = random.choice(data)
-        home_team = game['home_team']
-        away_team = [team for team in game['teams'] if team != home_team][0]
-        game_time = datetime.strptime(game['commence_time'], "%Y-%m-%dT%H:%M:%SZ")
-        game_time_str = game_time.strftime("%Y-%m-%d %H:%M")
+        home_team = game["home_team"]
+        away_team = [team for team in game["teams"] if team != home_team][0]
+        game_time = datetime.strptime(game["commence_time"], "%Y-%m-%dT%H:%M:%SZ")
+        game_time_str = game_time.strftime("%Y-%m-%d %I:%M %p")
 
+        # Flatten all outcomes
         all_markets = []
-        for bookmaker in game['bookmakers']:
-            if bookmaker['key'] in BOOKMAKERS:
-                for market in bookmaker['markets']:
-                    for outcome in market['outcomes']:
+        for bookmaker in game["bookmakers"]:
+            if bookmaker["key"] in BOOKMAKERS:
+                for market in bookmaker["markets"]:
+                    for outcome in market["outcomes"]:
                         all_markets.append({
-                            "bookmaker": bookmaker['title'],
-                            "market": market['key'],
-                            "player": outcome['name'],
-                            "line": outcome.get('point'),
-                            "price": outcome.get('price'),
+                            "bookmaker": bookmaker["title"],
+                            "market": market["key"],
+                            "name": outcome.get("name"),
+                            "price": outcome.get("price"),
+                            "point": outcome.get("point"),
                             "sport": sport,
                             "home": home_team,
                             "away": away_team,
@@ -50,29 +53,31 @@ def generate_pick():
                         })
 
         if not all_markets:
+            print("❌ No valid markets found for this game.")
             return None
 
         pick = random.choice(all_markets)
-        confidence = random.randint(61, 75)
-        diff = round(random.uniform(1.2, 3.5), 1)
+
+        confidence = random.randint(61, 78)
+        diff = round(random.uniform(1.0, 4.0), 1)
 
         sport_name = {
-            "basketball_nba": "BASKETBALL NBA",
-            "icehockey_nhl": "ICE HOCKEY NHL",
-            "baseball_mlb": "BASEBALL MLB"
-        }.get(pick['sport'], pick['sport'].upper())
+            "basketball_nba": "🏀 NBA",
+            "icehockey_nhl": "🏒 NHL",
+            "baseball_mlb": "⚾ MLB"
+        }.get(pick["sport"], "🏆 Sports")
 
-        player_line = f"{pick['player']} Over {pick['line']}"
-
-        return (
-            f"🏆 {sport_name}\n"
-            f"📆 {pick['game_time']}\n"
-            f"📊 Market: {pick['market'].replace('_', ' ').title()} @ {pick['bookmaker']}\n"
-            f"🏀 {player_line}\n"
-            f"🏟️ {pick['home']} vs {pick['away']}\n\n"
+        message = (
+            f"{sport_name} Signal Pick 🔥\n\n"
+            f"📅 {pick['game_time']}\n"
+            f"🏟️ {pick['home']} vs {pick['away']}\n"
+            f"📊 Market: {pick['market'].replace('_', ' ').title()}\n"
+            f"💰 Pick: {pick['name']} @ {pick['price']}\n"
             f"📈 Confidence: {confidence}% | Diff: +{diff}"
         )
 
+        return message
+
     except Exception as e:
-        print("❌ generate_pick error:", str(e))
+        print(f"❌ generate_pick Exception: {str(e)}")
         return None
