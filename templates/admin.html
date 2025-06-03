@@ -1,84 +1,53 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>Admin Panel – SignalCore AI</title>
+  <title>Admin Panel</title>
   <style>
     body {
+      font-family: Arial, sans-serif;
       background: #111;
       color: #fff;
-      font-family: Arial, sans-serif;
       padding: 40px;
-      text-align: center;
     }
-    h1 {
+    h2 {
       color: #0ff;
     }
-    .form {
+    textarea, input, button {
+      margin: 10px 0;
+      padding: 10px;
+      width: 100%;
+    }
+    .vip-box {
+      background: #222;
+      padding: 15px;
       margin-top: 30px;
-    }
-    input, textarea {
-      padding: 10px;
-      margin: 10px;
-      width: 80%;
-      background: #222;
-      border: 1px solid #555;
-      color: #fff;
-    }
-    button {
-      padding: 10px 20px;
-      background: #0ff;
-      border: none;
-      font-weight: bold;
-      cursor: pointer;
-    }
-    .vip-table {
-      margin-top: 40px;
-      width: 90%;
-      margin-left: auto;
-      margin-right: auto;
-      border-collapse: collapse;
-    }
-    .vip-table th, .vip-table td {
-      padding: 10px;
-      border: 1px solid #333;
-    }
-    .vip-table th {
-      background: #222;
+      border: 1px solid #444;
     }
   </style>
 </head>
 <body>
-  <h1>📢 Admin Panel</h1>
-  <p>Send manual VIP pick or add VIP user by Order ID</p>
+  <h2>📢 Send Manual Pick</h2>
+  <form method="POST" action="/send-pick">
+    <textarea name="pick" placeholder="Example: LeBron James Over 27.5 Points @ Stake" rows="4" required></textarea>
+    <button type="submit">Send Pick</button>
+  </form>
 
-  <div class="form">
-    <form method="post" action="/send-pick">
-      <textarea name="pick" placeholder="Enter your VIP pick..." rows="5" required></textarea><br>
-      <button type="submit">Send Pick</button>
-    </form>
+  <h2>👑 Add VIP Access</h2>
+  <form method="POST" action="/add-vip">
+    <input type="text" name="order_id" placeholder="Order ID or custom ref" required>
+    <input type="number" name="days" placeholder="Days (e.g., 7)" value="7">
+    <button type="submit">Add VIP</button>
+  </form>
+
+  <div class="vip-box">
+    <h3>📋 Current VIPs</h3>
+    <ul>
+      {% for order_id, info in vips.items() %}
+        <li><strong>{{ order_id }}</strong>: expires {{ info.expires }}</li>
+      {% else %}
+        <li>No VIPs added yet.</li>
+      {% endfor %}
+    </ul>
   </div>
-
-  <div class="form">
-    <form method="post" action="/add-vip">
-      <input type="text" name="order_id" placeholder="Order ID or Referral ID" required>
-      <input type="text" name="days" placeholder="Days to give (e.g. 7)" required>
-      <button type="submit">Add VIP</button>
-    </form>
-  </div>
-
-  <h2>🧠 Active VIPs</h2>
-  <table class="vip-table">
-    <tr>
-      <th>Order ID</th>
-      <th>Expires</th>
-    </tr>
-    {% for id, info in vips.items() %}
-    <tr>
-      <td>{{ id }}</td>
-      <td>{{ info.expires }}</td>
-    </tr>
-    {% endfor %}
-  </table>
 </body>
 </html>
