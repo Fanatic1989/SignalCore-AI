@@ -1,28 +1,18 @@
-import random
-from datetime import date
-
 def generate_pick():
-    # Dummy data until scrapers/API integration complete
-    players = ["LeBron James", "Stephen Curry", "Nikola Jokic"]
-    teams = ["Lakers", "Warriors", "Nuggets"]
-    stat_types = ["Points", "Rebounds", "Assists"]
+    try:
+        from scraper.betonline import fetch_betonline_nba_lines
+        lines = fetch_betonline_nba_lines()
+        if not lines:
+            return None
 
-    player = random.choice(players)
-    team = teams[players.index(player)]
-    stat = random.choice(stat_types)
-
-    value_stake = round(random.uniform(22, 35), 1)
-    value_betonline = round(value_stake - random.uniform(1.0, 3.0), 1)
-    ai_proj = round(value_stake + random.uniform(1.5, 4.0), 1)
-    confidence = random.randint(68, 83)
-    diff = round(ai_proj - value_stake, 1)
-
-    return f"""🏀 NBA  
-📆 {date.today().strftime('%B %d, %Y')}  
-📊 {player} – {team}  
-🎯 Stake: Over {value_stake} {stat}  
-🎯 BetOnline: Under {value_betonline} {stat}  
-
-📉 Book Average: {value_stake - 2.2}  
-🧠 AI Projected: {ai_proj}  
-📈 Confidence: {confidence}% | Diff: +{diff}"""
+        pick = lines[0]  # First available pick
+        return (
+            f"🏀 NBA\n"
+            f"{pick['player']} – {pick['team']}\n"
+            f"📆 {pick['date']}\n"
+            f"🎯 {pick['book']}: {pick['line']}\n"
+            f"📈 Confidence: {pick.get('confidence', 'N/A')} | Diff: {pick.get('diff', 'N/A')}"
+        )
+    except Exception as e:
+        print("❌ generate_pick error:", str(e))
+        return None
