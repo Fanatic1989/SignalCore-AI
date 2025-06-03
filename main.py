@@ -15,7 +15,7 @@ from vip_data import load_vips, save_vips
 # === 🔐 ENV VARIABLES ===
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK_URL")  # ✅ Fixed key
+DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK_URL")
 NOWPAYMENTS_API_KEY = os.getenv("NOWPAYMENTS_API_KEY")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "Zariah*1")
 TIMEZONE = os.getenv("TIMEZONE", "America/Puerto_Rico")
@@ -30,15 +30,8 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 # === 🧠 VIP DB ===
 vips = load_vips()
 
-# === 📢 PICK SENDER ===
-def send_daily_pick():
-    pick = generate_pick()
-    if not pick:
-        print("❌ Error: Pick generation failed.")
-        return
-
-    message = f"🔥 SignalCore AI VIP Pick\n\n{pick}"
-
+# === 📢 SEND PICK ===
+def send_pick(message):
     # Telegram
     try:
         tg = requests.post(
@@ -56,7 +49,17 @@ def send_daily_pick():
     except Exception as e:
         print("❌ Discord Error:", str(e))
 
-# === ⏰ SCHEDULER ===
+# === 📅 SCHEDULED PICK ===
+def send_daily_pick():
+    pick = generate_pick()
+    if not pick:
+        print("❌ Error: Pick generation failed.")
+        return
+
+    message = f"🔥 SignalCore AI VIP Pick\n\n{pick}"
+    send_pick(message)
+
+# === ⏰ SCHEDULER LOOP ===
 def run_scheduler():
     tz = pytz.timezone(TIMEZONE)
     print(f"[{datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S')}] Scheduler started")
@@ -102,6 +105,25 @@ def nowpayments_webhook():
         print("❌ Webhook Error:", str(e))
         abort(400)
 
+@app.route('/submit-proof', methods=['GET', 'POST'])
+def submit_proof():
+    if request.method == 'POST':
+        txid = request.form.get('txid')
+        screenshot = request.files.get('screenshot')
+        print("🧾 Proof Submitted – TXID:", txid)
+
+        if screenshot and screenshot.filename:
+            filename = secure_filename(screenshot.filename)
+            screenshot.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            print("📸 Screenshot saved:", filename)
+
+        session['order_id'] = txid
+        vips[txid] = {"expires": (datetime.utcnow() + timedelta(days=7)).isoformat()}
+        save_vips(vips)
+        return redirect(url_for('vip_payment'))
+
+    return render_template("submit_proof.html")
+
 @app.route('/admin', methods=['GET', 'POST'])
 def admin_panel():
     if request.method == 'POST':
@@ -120,6 +142,29 @@ def admin_panel():
 
     return render_template("admin.html", vips=vips)
 
+@app.route('/send-pick', methods=['POST'])
+def send_pick_manual():
+    if not session.get("admin"):
+        return "Unauthorized", 403
+
+    pick = request.form.get("pick")
+    if pick:
+        send_pick(f"🔥 SignalCore AI VIP Pick\n\n{pick}")
+    return redirect(url_for('admin_panel'))
+
+@app.route('/add-vip', methods=['POST'])
+def add_vip_manual():
+    if not session.get("admin"):
+        return "Unauthorized", 403
+
+    order_id = request.form.get("order_id")
+    days = int(request.form.get("days", 7))
+    if order_id:
+        vips[order_id] = {"expires": (datetime.utcnow() + timedelta(days=days)).isoformat()}
+        save_vips(vips)
+        print(f"✅ Admin added VIP: {order_id}")
+    return redirect(url_for('admin_panel'))
+
 @app.route('/ping')
 def ping():
     return "pong"
@@ -130,6 +175,5 @@ def keep_alive():
     app.run(host='0.0.0.0', port=port)
 
 if __name__ == "__main__":
-    send_daily_pick()  # ✅ TEST SIGNAL sent immediately
     Thread(target=keep_alive).start()
     run_scheduler()
