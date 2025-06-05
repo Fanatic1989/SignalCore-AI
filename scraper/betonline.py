@@ -1,74 +1,72 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 import time
-import pickle
-import os
-
-COOKIES_FILE = "betonline_cookies.pkl"
-
-SPORT_URLS = {
-    "NBA": "https://www.betonline.ag/sportsbook/basketball/nba",
-    "MLB": "https://www.betonline.ag/sportsbook/baseball/mlb",
-    "NHL": "https://www.betonline.ag/sportsbook/hockey/nhl",
-}
-
-def save_cookies(driver, filepath):
-    with open(filepath, "wb") as f:
-        pickle.dump(driver.get_cookies(), f)
-    print("💾 Cookies saved.")
-
-def load_cookies(driver, filepath):
-    with open(filepath, "rb") as f:
-        cookies = pickle.load(f)
-    for cookie in cookies:
-        driver.add_cookie(cookie)
-    print("✅ Cookies loaded.")
+import config  # your credentials
 
 def setup_driver():
     options = Options()
-    # Comment out to see browser for login
-    # options.add_argument("--headless=new")
+    options.add_argument("--headless=new")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    return webdriver.Chrome(options=options)
+    driver = webdriver.Chrome(options=options)
+    return driver
 
-def fetch_all_sports():
+def login(driver):
+    driver.get("https://www.betonline.ag/sportsbook/login")
+    wait = WebDriverWait(driver, 20)
+    
+    # Wait for email field
+    email_field = wait.until(EC.presence_of_element_located((By.ID, "login-email")))
+    email_field.send_keys(config.BETONLINE_EMAIL)
+    
+    password_field = driver.find_element(By.ID, "login-password")
+    password_field.send_keys(config.BETONLINE_PASSWORD)
+    
+    login_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Log In')]")
+    login_button.click()
+    
+    # Wait for the page to load after login, e.g. sportsbook page appears
+    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.sportsbook-content")))
+    print("✅ Logged in successfully")
+
+def get_lines_for_sport(driver, sport_url):
+    print(f"🌐 Navigating to {sport_url}")
+    driver.get(sport_url)
+    wait = WebDriverWait(driver, 20)
+    # Wait until the betting lines container appears
+    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.event")))
+    
+    time.sleep(5)  # extra wait for full JS load
+
+    events = driver.find_elements(By.CSS_SELECTOR, "div.event")
+    print(f"✅ Found {len(events)} events")
+
+    for event in events[:5]:  # limit to first 5 for now
+        teams = event.find_elements(By.CSS_SELECTOR, "span.team-name")
+        lines = event.find_elements(By.CSS_SELECTOR, "span.price")
+        if len(teams) == 2 and lines:
+            print(f"Match: {teams[0].text} vs {teams[1].text}")
+            print(f"Lines: {[line.text for line in lines]}")
+            print("---")
+
+def main():
     driver = setup_driver()
+    try:
+        login(driver)
+        sports = {
+            "NBA": "https://www.betonline.ag/sportsbook/basketball/nba",
+            "MLB": "https://www.betonline.ag/sportsbook/baseball/mlb",
+            "NHL": "https://www.betonline.ag/sportsbook/hockey/nhl"
+        }
+        for sport, url in sports.items():
+            get_lines_for_sport(driver, url)
+    finally:
+        driver.quit()
 
-    # First-time login
-    if not os.path.exists(COOKIES_FILE):
-        print("🔐 Please log in to BetOnline manually.")
-        driver.get("https://www.betonline.ag/sportsbook/basketball/nba")
-        input("👉 After login, press ENTER here to save cookies...")
-        save_cookies(driver, COOKIES_FILE)
-    else:
-        driver.get("https://www.betonline.ag/")
-        time.sleep(5)
-        load_cookies(driver, COOKIES_FILE)
-
-    all_lines = {}
-
-    for sport, url in SPORT_URLS.items():
-        print(f"\n🎯 Visiting {sport} page...")
-        driver.get(url)
-        time.sleep(10)  # wait for content to load
-
-        screenshot_name = f"{sport.lower()}_debug.png"
-        driver.save_screenshot(screenshot_name)
-        print(f"📸 Screenshot saved: {screenshot_name}")
-
-        # Parse logic (optional - use screenshot for now)
-        try:
-            elements = driver.find_elements(By.CLASS_NAME, "some-class")  # update this
-            lines = [el.text for el in elements if el.text]
-            all_lines[sport] = lines
-            print(f"📊 {sport} lines found:", lines)
-        except Exception as e:
-            print(f"⚠️ Could not extract lines for {sport}: {e}")
-            all_lines[sport] = []
-
-    driver.quit()
-    return all_lines
+if __name__ == "__main__":
+    main()
