@@ -1,72 +1,59 @@
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import time
-import config  # your credentials
+import os
 
-def setup_driver():
-    options = Options()
-    options.add_argument("--headless=new")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--window-size=1920,1080")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    driver = webdriver.Chrome(options=options)
-    return driver
+# === YOUR LOGIN INFO ===
+BETONLINE_EMAIL = "christiansucre1@gmail.com"
+BETONLINE_PASSWORD = "Zariah*1"
 
-def login(driver):
-    driver.get("https://www.betonline.ag/sportsbook/login")
-    wait = WebDriverWait(driver, 20)
-    
-    # Wait for email field
-    email_field = wait.until(EC.presence_of_element_located((By.ID, "login-email")))
-    email_field.send_keys(config.BETONLINE_EMAIL)
-    
-    password_field = driver.find_element(By.ID, "login-password")
-    password_field.send_keys(config.BETONLINE_PASSWORD)
-    
-    login_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Log In')]")
-    login_button.click()
-    
-    # Wait for the page to load after login, e.g. sportsbook page appears
-    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.sportsbook-content")))
-    print("✅ Logged in successfully")
+# === CHROME PROFILE ===
+profile_dir = os.path.expanduser("~/betonline_profile")
 
-def get_lines_for_sport(driver, sport_url):
-    print(f"🌐 Navigating to {sport_url}")
-    driver.get(sport_url)
-    wait = WebDriverWait(driver, 20)
-    # Wait until the betting lines container appears
-    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.event")))
-    
-    time.sleep(5)  # extra wait for full JS load
+options = Options()
+options.add_argument(f"--user-data-dir={profile_dir}")
+options.add_argument("--profile-directory=Default")
 
-    events = driver.find_elements(By.CSS_SELECTOR, "div.event")
-    print(f"✅ Found {len(events)} events")
+# === INIT DRIVER ===
+driver = webdriver.Chrome(options=options)
+driver.get("https://www.betonline.ag/")
 
-    for event in events[:5]:  # limit to first 5 for now
-        teams = event.find_elements(By.CSS_SELECTOR, "span.team-name")
-        lines = event.find_elements(By.CSS_SELECTOR, "span.price")
-        if len(teams) == 2 and lines:
-            print(f"Match: {teams[0].text} vs {teams[1].text}")
-            print(f"Lines: {[line.text for line in lines]}")
-            print("---")
+try:
+    # === WAIT AND CLICK LOGIN BUTTON ===
+    WebDriverWait(driver, 20).until(
+        EC.element_to_be_clickable((By.CSS_SELECTOR, "button[data-testid='hn-desktop-login-button']"))
+    ).click()
 
-def main():
-    driver = setup_driver()
-    try:
-        login(driver)
-        sports = {
-            "NBA": "https://www.betonline.ag/sportsbook/basketball/nba",
-            "MLB": "https://www.betonline.ag/sportsbook/baseball/mlb",
-            "NHL": "https://www.betonline.ag/sportsbook/hockey/nhl"
-        }
-        for sport, url in sports.items():
-            get_lines_for_sport(driver, url)
-    finally:
-        driver.quit()
+    # === FILL EMAIL ===
+    WebDriverWait(driver, 20).until(
+        EC.presence_of_element_located((By.NAME, "email"))
+    ).send_keys(BETONLINE_EMAIL)
 
-if __name__ == "__main__":
-    main()
+    # === FILL PASSWORD ===
+    driver.find_element(By.NAME, "password").send_keys(BETONLINE_PASSWORD)
+
+    # === CLICK FINAL LOGIN BUTTON ===
+    WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit']"))
+    ).click()
+
+    # === WAIT FOR LOGIN TO COMPLETE ===
+    WebDriverWait(driver, 30).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, "div.account-header"))  # or something post-login
+    )
+
+    print("✅ Logged in successfully.")
+
+except Exception as e:
+    print("❌ Error:", e)
+
+# You can now continue scraping as a logged-in user
+
+# === OPTIONAL: keep open ===
+time.sleep(60 * 5)  # Keep browser open for 5 minutes
+
+driver.quit()
